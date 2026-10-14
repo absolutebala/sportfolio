@@ -17,7 +17,7 @@ export default function BuildingProfileScreen({ navigation, route }) {
     ).start();
 
     const timer = setTimeout(() => {
-      navigation.replace('Profile');
+      navigation.replace('MainApp');
     }, 1100);
 
     return () => clearTimeout(timer);
