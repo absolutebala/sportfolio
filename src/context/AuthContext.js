@@ -88,6 +88,11 @@ export function AuthProvider({ children }) {
         });
         console.log('✅ setSession result:', sessionData?.user?.email, sessionError?.message);
         if (sessionError) throw sessionError;
+        // Manually update state in case onAuthStateChange doesn't fire
+        if (sessionData?.session) {
+          setSession(sessionData.session);
+          setUser(sessionData.session.user);
+        }
       }
     } else if (result.type === 'cancel') {
       throw new Error('Sign-in was cancelled.');
