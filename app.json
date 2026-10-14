@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "iSportOne",
+    "slug": "isportone",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "iSportOne uses your camera to let you add a profile photo, cover photo, or a moment from your games.",
+        "NSPhotoLibraryUsageDescription": "iSportOne uses your photo library to let you choose a profile photo, cover photo, or a moment from your games."
+      }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "iSportOne uses your photo library to let you choose a profile photo, cover photo, or a moment from your games.",
+          "cameraPermission": "iSportOne uses your camera to let you add a profile photo, cover photo, or a moment from your games."
+        }
+      ],
+      "expo-font"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
