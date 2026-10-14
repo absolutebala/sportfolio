@@ -18,8 +18,6 @@ web-build/
 # Metro
 .metro-health-check*
 
-# Environment / secrets — never commit real credentials
-src/lib/supabase.js
 
 # macOS
 .DS_Store
