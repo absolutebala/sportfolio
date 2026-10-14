@@ -2,8 +2,15 @@ import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+import { AuthProvider, useAuth } from '../context/AuthContext';
 import { OnboardingProvider, useOnboarding } from '../context/OnboardingContext';
 
+// Auth screens
+import LoginScreen from '../screens/LoginScreen';
+import SignUpScreen from '../screens/SignUpScreen';
+
+// Onboarding screens
 import WelcomeScreen from '../screens/WelcomeScreen';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import IdentityScreen from '../screens/IdentityScreen';
@@ -12,33 +19,50 @@ import LevelSelectionScreen from '../screens/LevelSelectionScreen';
 import ClubScreen from '../screens/ClubScreen';
 import ProfileBuilderScreen from '../screens/ProfileBuilderScreen';
 import BuildingProfileScreen from '../screens/BuildingProfileScreen';
-import LogMatchScreen from '../screens/LogMatchScreen';
-import PostNavigator from './PostNavigator';
+
+// Main app
 import MainTabNavigator from './MainTabNavigator';
+import PostNavigator from './PostNavigator';
+import LogMatchScreen from '../screens/LogMatchScreen';
 
 const Stack = createNativeStackNavigator();
 
-function AppNavigator() {
-  const { data, loaded } = useOnboarding();
+const SCREEN_OPTIONS = {
+  headerShown: false,
+  animation: 'slide_from_right',
+  contentStyle: { backgroundColor: '#0a0d14' },
+};
 
-  // Wait for AsyncStorage to load before deciding which screen to show
-  if (!loaded) {
+// ── Inner navigator — needs both auth + onboarding contexts ─────────────────
+function AppNavigator() {
+  const { user, loading: authLoading } = useAuth();
+  const { data, loaded: onboardingLoaded } = useOnboarding();
+
+  // Wait for both auth session check and AsyncStorage onboarding load
+  if (authLoading || !onboardingLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0d0a1a', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#7c3aed" />
+        <ActivityIndicator color="#7c3aed" size="large" />
       </View>
     );
   }
 
+  // Determine initial route
+  let initialRouteName;
+  if (!user) {
+    initialRouteName = 'Login';
+  } else if (!data.profileComplete) {
+    initialRouteName = 'Welcome';
+  } else {
+    initialRouteName = 'MainApp';
+  }
+
   return (
-    <Stack.Navigator
-      initialRouteName={data.profileComplete ? 'MainApp' : 'Welcome'}
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-        contentStyle: { backgroundColor: '#0a0d14' },
-      }}
-    >
+    <Stack.Navigator initialRouteName={initialRouteName} screenOptions={SCREEN_OPTIONS}>
+      {/* ── Auth ── */}
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="SignUp" component={SignUpScreen} />
+
       {/* ── Onboarding ── */}
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
@@ -53,13 +77,11 @@ function AppNavigator() {
       <Stack.Screen name="MainApp" component={MainTabNavigator} />
 
       {/* ── Modals ── */}
-      {/* LogMatch: unified match log + post (replaces LogActivity + Post) */}
       <Stack.Screen
         name="LogMatch"
         component={LogMatchScreen}
         options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
       />
-      {/* Post: 2-step moment/update post flow */}
       <Stack.Screen
         name="Post"
         component={PostNavigator}
@@ -69,12 +91,15 @@ function AppNavigator() {
   );
 }
 
+// ── Root — provides both contexts ───────────────────────────────────────────
 export default function RootNavigator() {
   return (
-    <OnboardingProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
-    </OnboardingProvider>
+    <AuthProvider>
+      <OnboardingProvider>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </OnboardingProvider>
+    </AuthProvider>
   );
 }

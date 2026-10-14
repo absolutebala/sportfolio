@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = '@isportone_profile_v1';
 
@@ -51,8 +52,51 @@ export function OnboardingProvider({ children }) {
     });
   }
 
-  function markProfileComplete() {
+  async function markProfileComplete() {
     update({ profileComplete: true });
+
+    // Sync profile row to Supabase
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Build a handle from name (fallback to email prefix)
+      const rawName = data.name || user.email?.split('@')[0] || 'athlete';
+      const handle = rawName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30) || 'athlete';
+
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        handle,
+        name: data.name || rawName,
+        bio: data.bio || null,
+        city: data.city || null,
+        role: data.role || 'athlete',
+        level: data.level || null,
+        looking_for_partners: data.lookingForPartners ?? true,
+        profile_complete: true,
+      });
+
+      // Sync sport selections
+      if (data.sports?.length) {
+        // Get sport IDs from DB
+        const { data: sportRows } = await supabase
+          .from('sports')
+          .select('id, slug')
+          .in('slug', data.sports);
+
+        if (sportRows?.length) {
+          const profileSports = sportRows.map((s, i) => ({
+            profile_id: user.id,
+            sport_id: s.id,
+            sort_order: i,
+          }));
+          await supabase.from('profile_sports').upsert(profileSports);
+        }
+      }
+    } catch (e) {
+      // Non-fatal: local profile is already saved via AsyncStorage
+      console.warn('Supabase profile sync failed:', e.message);
+    }
   }
 
   function logActivity(activity) {
