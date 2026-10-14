@@ -41,10 +41,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signInWithGoogle() {
-    const redirectUrl = AuthSession.makeRedirectUri({
-      scheme: 'isportone',
-      path: 'auth/callback',
-    });
+    // In Expo Go, the redirect URL is always exp://IP:port/--/path
+    // Supabase has exp://** whitelisted which covers any IP.
+    const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
     console.log('🔵 redirectUrl:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -58,35 +57,10 @@ export function AuthProvider({ children }) {
     if (error) throw error;
     console.log('🟢 OAuth URL:', data.url);
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-    console.log('🟡 result:', JSON.stringify(result));
-
-    if (result.type === 'success') {
-      // Parse tokens from URL fragment or query params
-      const url = result.url;
-
-      // Try fragment first (implicit flow)
-      const fragmentMatch = url.match(/#(.+)/);
-      const queryMatch = url.match(/\?(.+)/);
-      const paramStr = fragmentMatch?.[1] || queryMatch?.[1] || '';
-      const params = new URLSearchParams(paramStr);
-
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-
-      if (accessToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (sessionError) throw sessionError;
-      } else {
-        // PKCE flow — exchange code
-        await supabase.auth.exchangeCodeForSession(url);
-      }
-    } else if (result.type === 'cancel') {
-      throw new Error('Sign-in was cancelled.');
-    }
+    // openBrowserAsync just opens the browser; the deep link listener
+    // in useEffect handles the callback when Supabase redirects back.
+    await WebBrowser.openBrowserAsync(data.url);
+    console.log('🟡 browser opened');
   }
 
   async function signOut() {
