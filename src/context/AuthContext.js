@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -25,11 +24,24 @@ export function AuthProvider({ children }) {
       setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    // Handle deep link callback after OAuth redirect
+    const handleUrl = async ({ url }) => {
+      if (url?.includes('access_token') || url?.includes('code=')) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error) console.warn('OAuth callback error:', error.message);
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleUrl);
+    return () => {
+      subscription.unsubscribe();
+      sub.remove();
+    };
   }, []);
 
   async function signInWithGoogle() {
-    const redirectUrl = AuthSession.makeRedirectUri({ useProxy: true });
+    // Use the app's deep link scheme as redirect
+    const redirectUrl = Linking.createURL('/auth/callback');
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -44,10 +56,17 @@ export function AuthProvider({ children }) {
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
 
     if (result.type === 'success') {
+      // Parse tokens from URL fragment or query params
       const url = result.url;
-      const params = new URL(url);
-      const accessToken = params.searchParams.get('access_token');
-      const refreshToken = params.searchParams.get('refresh_token');
+
+      // Try fragment first (implicit flow)
+      const fragmentMatch = url.match(/#(.+)/);
+      const queryMatch = url.match(/\?(.+)/);
+      const paramStr = fragmentMatch?.[1] || queryMatch?.[1] || '';
+      const params = new URLSearchParams(paramStr);
+
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
 
       if (accessToken) {
         const { error: sessionError } = await supabase.auth.setSession({
@@ -55,6 +74,9 @@ export function AuthProvider({ children }) {
           refresh_token: refreshToken,
         });
         if (sessionError) throw sessionError;
+      } else {
+        // PKCE flow — exchange code
+        await supabase.auth.exchangeCodeForSession(url);
       }
     } else if (result.type === 'cancel') {
       throw new Error('Sign-in was cancelled.');
