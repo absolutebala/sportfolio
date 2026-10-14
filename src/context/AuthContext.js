@@ -25,11 +25,24 @@ export function AuthProvider({ children }) {
       setUser(session?.user ?? null);
     });
 
-    // Handle deep link callback after OAuth redirect
+    // Handle deep link callback after OAuth redirect (implicit flow)
     const handleUrl = async ({ url }) => {
-      if (url?.includes('access_token') || url?.includes('code=')) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-        if (error) console.warn('OAuth callback error:', error.message);
+      if (!url) return;
+      console.log('🟣 deep link received:', url);
+      if (url.includes('access_token')) {
+        // Implicit flow — tokens are in the URL fragment
+        const fragmentMatch = url.match(/#(.+)/);
+        const paramStr = fragmentMatch?.[1] || '';
+        const params = new URLSearchParams(paramStr);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        if (accessToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) console.warn('setSession error:', error.message);
+        }
       }
     };
 

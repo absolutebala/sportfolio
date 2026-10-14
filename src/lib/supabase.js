@@ -18,5 +18,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,      // must be false for React Native
+    flowType: 'implicit',           // avoid PKCE code verifier mismatch in Expo Go
   },
 });
