@@ -41,12 +41,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signInWithGoogle() {
-    // makeRedirectUri with scheme generates isportone://auth/callback
-    // which is stable (no IP address) and can be whitelisted in Supabase
     const redirectUrl = AuthSession.makeRedirectUri({
       scheme: 'isportone',
       path: 'auth/callback',
     });
+    console.log('🔵 redirectUrl:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -57,8 +56,10 @@ export function AuthProvider({ children }) {
     });
 
     if (error) throw error;
+    console.log('🟢 OAuth URL:', data.url);
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+    console.log('🟡 result:', JSON.stringify(result));
 
     if (result.type === 'success') {
       // Parse tokens from URL fragment or query params
