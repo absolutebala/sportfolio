@@ -75,18 +75,18 @@ export function AuthProvider({ children }) {
 
     if (result.type === 'success') {
       const url = result.url;
-      // Implicit flow — tokens in fragment
       const fragmentMatch = url.match(/#(.+)/);
-      const queryMatch = url.match(/\?(.+)/);
-      const paramStr = fragmentMatch?.[1] || queryMatch?.[1] || '';
+      const paramStr = fragmentMatch?.[1] || '';
       const params = new URLSearchParams(paramStr);
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
+      console.log('🔑 accessToken found:', !!accessToken);
       if (accessToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
+        console.log('✅ setSession result:', sessionData?.user?.email, sessionError?.message);
         if (sessionError) throw sessionError;
       }
     } else if (result.type === 'cancel') {
