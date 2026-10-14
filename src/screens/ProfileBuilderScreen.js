@@ -63,15 +63,15 @@ export default function ProfileBuilderScreen({ navigation }) {
           <Text style={styles.label}>When do you usually play?</Text>
           <View style={styles.chips}>
             {WHEN_OPTIONS.map((opt) => {
-              const isSelected = when.includes(opt);
+              const isSelected = when.includes(opt.value);
               return (
                 <TouchableOpacity
-                  key={opt}
+                  key={opt.value}
                   style={[styles.chip, isSelected && styles.chipSelected]}
-                  onPress={() => toggle(when, setWhen, opt)}
+                  onPress={() => toggle(when, setWhen, opt.value)}
                 >
                   <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                    {opt}
+                    {opt.label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -83,15 +83,15 @@ export default function ProfileBuilderScreen({ navigation }) {
           <Text style={styles.label}>Preferred style</Text>
           <View style={styles.chips}>
             {STYLE_OPTIONS.map((opt) => {
-              const isSelected = style.includes(opt);
+              const isSelected = style.includes(opt.value);
               return (
                 <TouchableOpacity
-                  key={opt}
+                  key={opt.value}
                   style={[styles.chip, isSelected && styles.chipSelected]}
-                  onPress={() => toggle(style, setStyle, opt)}
+                  onPress={() => toggle(style, setStyle, opt.value)}
                 >
                   <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                    {opt}
+                    {opt.label}
                   </Text>
                 </TouchableOpacity>
               );
