@@ -7,6 +7,8 @@
     "@react-native-async-storage/async-storage": "*",
     "@react-native-community/datetimepicker": "*",
     "@supabase/supabase-js": "^2.47.10",
+    "expo-auth-session": "*",
+    "expo-web-browser": "*",
     "@react-navigation/bottom-tabs": "*",
     "@react-navigation/native": "*",
     "@react-navigation/native-stack": "*",
