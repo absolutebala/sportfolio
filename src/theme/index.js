@@ -33,6 +33,21 @@ export function getSportColors(sportKey) {
   return sportColors[key] || sportColors.default;
 }
 
+// Font family tokens — loaded via expo-font / @expo-google-fonts/poppins
+// Screens reference these as fontFamily values in StyleSheet
+export const fonts = {
+  regular: 'Poppins_400Regular',
+  medium: 'Poppins_500Medium',
+  semiBold: 'Poppins_600SemiBold',
+  bold: 'Poppins_700Bold',
+  extraBold: 'Poppins_800ExtraBold',
+};
+
+// Accent color (default purple — used by auth screens, buttons, etc.)
+colors.accent = '#6366f1';
+colors.error = '#ef4444';
+colors.success = '#22c55e';
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -71,6 +86,7 @@ export const typography = {
 
 export default {
   colors,
+  fonts,
   sportColors,
   getSportColors,
   spacing,
