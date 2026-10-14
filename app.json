@@ -3,7 +3,7 @@
     "name": "Sportfolio",
     "slug": "sportfolio",
     "version": "1.0.0",
-    "scheme": "isportone",
+    "scheme": "com.absoluteapplabs.sportfolio",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

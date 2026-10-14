@@ -54,9 +54,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signInWithGoogle() {
-    // In Expo Go, the redirect URL is always exp://IP:port/--/path
-    // Supabase has exp://** whitelisted which covers any IP.
-    const redirectUrl = AuthSession.makeRedirectUri({ path: 'auth/callback' });
+    // Standalone APK uses the app scheme; Expo Go uses exp://
+    const isExpoGo = AuthSession.makeRedirectUri().startsWith('exp://');
+    const redirectUrl = isExpoGo
+      ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
+      : 'com.absoluteapplabs.sportfolio://auth/callback';
     console.log('🔵 redirectUrl:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
