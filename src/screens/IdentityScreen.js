@@ -16,7 +16,8 @@ import { useOnboarding } from '../context/OnboardingContext';
 
 function formatDate(date) {
   if (!date) return null;
-  return date.toLocaleDateString('en-GB', {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -25,10 +26,11 @@ function formatDate(date) {
 
 function calculateAge(dob) {
   if (!dob) return null;
+  const d = dob instanceof Date ? dob : new Date(dob);
   const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const monthDiff = today.getMonth() - dob.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+  let age = today.getFullYear() - d.getFullYear();
+  const monthDiff = today.getMonth() - d.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d.getDate())) {
     age--;
   }
   return age;
@@ -37,7 +39,7 @@ function calculateAge(dob) {
 export default function IdentityScreen({ navigation }) {
   const { data, update } = useOnboarding();
   const [name, setName] = useState(data.name);
-  const [dob, setDob] = useState(data.dob);
+  const [dob, setDob] = useState(data.dob ? new Date(data.dob) : null);
   const [showPicker, setShowPicker] = useState(false);
 
   const age = calculateAge(dob);
