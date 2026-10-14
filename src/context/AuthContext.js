@@ -58,7 +58,7 @@ export function AuthProvider({ children }) {
     const isExpoGo = AuthSession.makeRedirectUri().startsWith('exp://');
     const redirectUrl = isExpoGo
       ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
-      : 'com.absoluteapplabs.sportfolio://auth/callback';
+      : 'com.idataone.sportfolio://auth/callback';
     console.log('🔵 redirectUrl:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({

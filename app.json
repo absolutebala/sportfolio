@@ -3,7 +3,7 @@
     "name": "Sportfolio",
     "slug": "sportfolio",
     "version": "1.0.0",
-    "scheme": "com.absoluteapplabs.sportfolio",
+    "scheme": "com.idataone.sportfolio",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -25,7 +25,7 @@
       "expo-font"
     ],
     "android": {
-      "package": "com.absoluteapplabs.sportfolio",
+      "package": "com.idataone.sportfolio",
       "versionCode": 1,
       "permissions": [
         "CAMERA",
