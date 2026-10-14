@@ -70,10 +70,28 @@ export function AuthProvider({ children }) {
     if (error) throw error;
     console.log('🟢 OAuth URL:', data.url);
 
-    // openBrowserAsync just opens the browser; the deep link listener
-    // in useEffect handles the callback when Supabase redirects back.
-    await WebBrowser.openBrowserAsync(data.url);
-    console.log('🟡 browser opened');
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+    console.log('🟡 result:', JSON.stringify(result));
+
+    if (result.type === 'success') {
+      const url = result.url;
+      // Implicit flow — tokens in fragment
+      const fragmentMatch = url.match(/#(.+)/);
+      const queryMatch = url.match(/\?(.+)/);
+      const paramStr = fragmentMatch?.[1] || queryMatch?.[1] || '';
+      const params = new URLSearchParams(paramStr);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      if (accessToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionError) throw sessionError;
+      }
+    } else if (result.type === 'cancel') {
+      throw new Error('Sign-in was cancelled.');
+    }
   }
 
   async function signOut() {
