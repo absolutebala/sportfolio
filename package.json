@@ -3,23 +3,23 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "@expo/vector-icons": "^15.0.3",
-    "@react-native-async-storage/async-storage": "^2.1.2",
-    "@react-native-community/datetimepicker": "^9.1.0",
+    "@expo/vector-icons": "*",
+    "@react-native-async-storage/async-storage": "*",
+    "@react-native-community/datetimepicker": "*",
     "@supabase/supabase-js": "^2.47.10",
-    "@react-navigation/bottom-tabs": "^7.0.0",
-    "@react-navigation/native": "^7.0.0",
-    "@react-navigation/native-stack": "^7.0.0",
-    "@expo-google-fonts/poppins": "^0.12.1",
-    "expo": "^54.0.0",
-    "expo-linear-gradient": "~14.0.2",
-    "expo-font": "~14.0.12",
-    "expo-image-picker": "~17.0.11",
-    "expo-status-bar": "~3.0.9",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0"
+    "@react-navigation/bottom-tabs": "*",
+    "@react-navigation/native": "*",
+    "@react-navigation/native-stack": "*",
+    "@expo-google-fonts/poppins": "*",
+    "expo": "*",
+    "expo-linear-gradient": "*",
+    "expo-font": "*",
+    "expo-image-picker": "*",
+    "expo-status-bar": "*",
+    "react": "*",
+    "react-native": "*",
+    "react-native-safe-area-context": "*",
+    "react-native-screens": "*"
   },
   "scripts": {
     "start": "expo start",
@@ -29,6 +29,6 @@
   },
   "private": true,
   "devDependencies": {
-    "babel-preset-expo": "~54.0.10"
+    "babel-preset-expo": "*"
   }
 }
