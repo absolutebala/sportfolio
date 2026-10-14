@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as AuthSession from 'expo-auth-session';
 import { supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -40,8 +41,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signInWithGoogle() {
-    // Use the app's deep link scheme as redirect
-    const redirectUrl = Linking.createURL('/auth/callback');
+    // makeRedirectUri with scheme generates isportone://auth/callback
+    // which is stable (no IP address) and can be whitelisted in Supabase
+    const redirectUrl = AuthSession.makeRedirectUri({
+      scheme: 'isportone',
+      path: 'auth/callback',
+    });
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
