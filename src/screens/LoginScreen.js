@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { colors, fonts, spacing, radius } from '../theme';
 
@@ -32,9 +33,11 @@ export default function LoginScreen({ navigation }) {
 
         {/* Brand */}
         <View style={styles.brand}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoText}>iS</Text>
-          </View>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.appName}>iSportOne</Text>
           <Text style={styles.tagline}>Your sports identity, one place.</Text>
         </View>
@@ -89,18 +92,11 @@ const styles = StyleSheet.create({
   },
 
   brand: { alignItems: 'center', marginBottom: spacing.xxl },
-  logoBox: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: colors.accent,
-    alignItems: 'center', justifyContent: 'center',
+  logo: {
+    width: 100,
+    height: 100,
     marginBottom: spacing.md,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
   },
-  logoText: { fontFamily: fonts.bold, fontSize: 28, color: '#fff' },
   appName: { fontFamily: fonts.bold, fontSize: 24, color: colors.textPrimary },
   tagline: { fontFamily: fonts.regular, fontSize: 13, color: colors.textMuted, marginTop: 4 },
 

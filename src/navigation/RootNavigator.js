@@ -8,7 +8,6 @@ import { OnboardingProvider, useOnboarding } from '../context/OnboardingContext'
 
 // Auth screens
 import LoginScreen from '../screens/LoginScreen';
-import SignUpScreen from '../screens/SignUpScreen';
 
 // Onboarding screens
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -61,7 +60,6 @@ function AppNavigator() {
     <Stack.Navigator initialRouteName={initialRouteName} screenOptions={SCREEN_OPTIONS}>
       {/* ── Auth ── */}
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="SignUp" component={SignUpScreen} />
 
       {/* ── Onboarding ── */}
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
