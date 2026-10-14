@@ -312,7 +312,7 @@ export default function ProfileScreen({ navigation }) {
       <TouchableOpacity
         style={styles.fab}
         activeOpacity={0.85}
-        onPress={() => navigation.navigate('LogActivity')}
+        onPress={() => navigation.navigate('LogMatch')}
       >
         <Ionicons name="add" size={24} color="#431407" />
       </TouchableOpacity>

@@ -44,7 +44,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
               {isAfterDiscover && (
                 <TouchableOpacity
                   style={[styles.fab, { backgroundColor: sc.accent }]}
-                  onPress={() => navigation.navigate('Post')}
+                  onPress={() => navigation.navigate('LogMatch')}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="add" size={26} color="#fff" />
