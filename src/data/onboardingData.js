@@ -30,9 +30,9 @@ export const LEVELS = [
 ];
 
 export const CLUB_OPTIONS = [
-  { value: 'yes', label: 'Yes, I belong to a club' },
-  { value: 'looking', label: 'No, but I\'m looking' },
-  { value: 'no', label: 'No, I play independently' },
+  { key: 'yes', title: 'Yes, I belong to a club', desc: 'Search and join your club', icon: 'shield-checkmark-outline' },
+  { key: 'looking', title: 'No, but I\'m looking', desc: 'We\'ll help you find one', icon: 'search-outline' },
+  { key: 'no', title: 'No, I play independently', desc: 'That\'s fine too!', icon: 'person-outline' },
 ];
 
 export const WHEN_OPTIONS = [
