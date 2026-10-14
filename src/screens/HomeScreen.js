@@ -13,15 +13,34 @@ import { colors, spacing, radius, typography, fonts, getSportColors } from '../t
 import { useOnboarding } from '../context/OnboardingContext';
 
 // ─── My Activity Card ──────────────────────────────────────────────────────
+function timeAgo(date) {
+  if (!date) return 'Just now';
+  const diffMs = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 function MyActivityCard({ activity, sc }) {
   const resultEmoji = activity.result === 'win' ? '🏆' : activity.result === 'loss' ? '💪' : '➡️';
   const resultColor = activity.result === 'win' ? '#22c55e' : activity.result === 'loss' ? '#f97316' : colors.textSecondary;
+  const resultLabel = activity.result === 'win' ? 'Won' : activity.result === 'loss' ? 'Lost' : 'Drew';
   const sportSc = getSportColors(activity.sport || 'badminton');
+  const opponentNames = activity.opponents?.length
+    ? activity.opponents.map((p) => p.name.split(' ')[0]).join(' & ')
+    : null;
+  const partnerName = activity.partners?.length ? activity.partners[0].name.split(' ')[0] : null;
+  const activityDate = activity.timestamp || activity.date;
+  const reactions = activity.reactions || { fire: 0, trophy: 0 };
 
   let scoreText = '';
-  if (activity.sportType === 'racquet') {
+  if (activity.sportType === 'racquet' && activity.gamesPlayed) {
     scoreText = `${activity.gamesWon ?? 0}/${activity.gamesPlayed ?? 0} games`;
-  } else if (activity.sportType === 'team') {
+  } else if (activity.sportType === 'team' && (activity.myScore || activity.theirScore)) {
     scoreText = `${activity.myScore ?? 0} – ${activity.theirScore ?? 0}`;
   } else if (activity.sportType === 'solo') {
     scoreText = [activity.soloTime, activity.soloDistance && `${activity.soloDistance} km`].filter(Boolean).join(' · ');
@@ -35,9 +54,19 @@ function MyActivityCard({ activity, sc }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.myCardCaption} numberOfLines={1}>
-            {activity.caption || 'Match logged'}
+            {resultLabel}{opponentNames ? ` vs ${opponentNames}` : (activity.caption || ' — match logged')}
           </Text>
+          {partnerName && <Text style={styles.myCardMeta}>Partner: {partnerName}</Text>}
           {scoreText ? <Text style={styles.myCardScore}>{scoreText}</Text> : null}
+          <View style={styles.myCardFooter}>
+            <Text style={styles.myCardTime}>{timeAgo(activityDate)}</Text>
+            {(reactions.fire > 0 || reactions.trophy > 0) && (
+              <View style={styles.myCardReactions}>
+                {reactions.fire > 0 && <Text style={styles.myCardReactionText}>🔥 {reactions.fire}</Text>}
+                {reactions.trophy > 0 && <Text style={styles.myCardReactionText}>🏆 {reactions.trophy}</Text>}
+              </View>
+            )}
+          </View>
         </View>
         <Text style={[styles.myCardResult, { color: resultColor }]}>{resultEmoji}</Text>
       </View>
@@ -242,20 +271,22 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       {/* Zone pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.zonePills}
-      >
-        {['For You', 'Following', 'Clubs', 'Tournaments'].map((z, i) => (
-          <TouchableOpacity
-            key={z}
-            style={[styles.zonePill, i === 0 && { backgroundColor: colors.purple900, borderColor: colors.accent }]}
-          >
-            <Text style={[styles.zonePillText, i === 0 && { color: colors.accent }]}>{z}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.zonePillsWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.zonePills}
+        >
+          {['For You', 'Following', 'Clubs', 'Tournaments'].map((z, i) => (
+            <TouchableOpacity
+              key={z}
+              style={[styles.zonePill, i === 0 && { backgroundColor: colors.purple900, borderColor: colors.accent }]}
+            >
+              <Text style={[styles.zonePillText, i === 0 && { color: colors.accent }]}>{z}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Feed */}
       <ScrollView
@@ -303,13 +334,6 @@ export default function HomeScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* ── FAB: Log Match ── */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: sc.accent }]}
-        onPress={() => navigation.navigate('LogMatch')}
-      >
-        <Ionicons name="add" size={26} color="#fff" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -341,10 +365,14 @@ const styles = StyleSheet.create({
   },
 
   // Zone pills
+  zonePillsWrapper: {
+    height: 48,
+  },
   zonePills: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     gap: spacing.sm,
+    alignItems: 'center',
   },
   zonePill: {
     paddingHorizontal: spacing.lg,
@@ -360,7 +388,7 @@ const styles = StyleSheet.create({
   },
 
   // Feed
-  feed: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  feed: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
 
   // Card
   card: {
@@ -472,6 +500,11 @@ const styles = StyleSheet.create({
   myCardCaption: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.textPrimary },
   myCardScore: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   myCardResult: { fontSize: 20 },
+  myCardMeta: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  myCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
+  myCardTime: { fontFamily: fonts.regular, fontSize: 10, color: colors.textFaint },
+  myCardReactions: { flexDirection: 'row', gap: 8 },
+  myCardReactionText: { fontSize: 11, color: colors.textMuted },
   pbBadge: {
     marginTop: 6,
     alignSelf: 'flex-start',
@@ -509,20 +542,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
 
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 28,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
 });

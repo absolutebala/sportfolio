@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../theme';
 import { useOnboarding } from '../context/OnboardingContext';
+import { useAuth } from '../context/AuthContext';
 import { SPORTS } from '../data/onboardingData';
 import { pickImage } from '../utils/imagePicker';
 
@@ -58,6 +59,7 @@ const MOMENT_TILE_SIZE =
 
 export default function ProfileScreen({ navigation }) {
   const { data, update, addMoment: addMomentToList } = useOnboarding();
+  const { signOut } = useAuth();
   const [bioModalOpen, setBioModalOpen] = useState(false);
   const [bioDraft, setBioDraft] = useState(data.bio);
   const [nameModalOpen, setNameModalOpen] = useState(false);
@@ -113,7 +115,15 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.topbarTitle}>MY PROFILE</Text>
           <View style={styles.topbarIcons}>
             <Ionicons name="share-outline" size={18} color={colors.textMuted} />
-            <Ionicons name="settings-outline" size={18} color={colors.textMuted} />
+            <TouchableOpacity
+              onPress={async () => {
+                await signOut();
+                navigation.replace('Login');
+              }}
+              hitSlop={8}
+            >
+              <Ionicons name="log-out-outline" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -221,50 +231,51 @@ export default function ProfileScreen({ navigation }) {
           </View>
         ) : (
           <View style={styles.activityList}>
-            {data.activities.map((a, i) => (
-              <View key={i} style={styles.activityItem}>
-                <View
-                  style={[
-                    styles.activityIcon,
-                    a.result === 'win' && { backgroundColor: '#14532d' },
-                    a.result === 'loss' && { backgroundColor: '#450a0a' },
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      a.result === 'win'
-                        ? 'trophy'
-                        : a.result === 'loss'
-                        ? 'close'
-                        : 'remove'
-                    }
-                    size={14}
-                    color={
-                      a.result === 'win'
-                        ? '#86efac'
-                        : a.result === 'loss'
-                        ? '#fca5a5'
-                        : '#cbd5e1'
-                    }
-                  />
+            {data.activities.map((a, i) => {
+              const resultColor = a.result === 'win' ? '#86efac' : a.result === 'loss' ? '#fca5a5' : '#cbd5e1';
+              const resultBg = a.result === 'win' ? '#14532d' : a.result === 'loss' ? '#450a0a' : colors.bgTertiary;
+              const resultIcon = a.result === 'win' ? 'trophy' : a.result === 'loss' ? 'close' : 'remove';
+              const resultLabel = a.result === 'win' ? 'Won' : a.result === 'loss' ? 'Lost' : 'Drew';
+              const opponentNames = a.opponents?.length
+                ? a.opponents.map((p) => p.name.split(' ')[0]).join(' & ')
+                : null;
+              const partnerName = a.partners?.length ? a.partners[0].name.split(' ')[0] : null;
+              const activityDate = a.timestamp || a.date;
+              const formatLabel = a.matchFormat === 'doubles' ? 'Doubles' : a.matchFormat === 'singles' ? 'Singles' : null;
+              const reactions = a.reactions || { fire: Math.floor(Math.random() * 8), trophy: a.result === 'win' ? Math.floor(Math.random() * 4) : 0 };
+              return (
+                <View key={i} style={styles.activityItem}>
+                  <View style={[styles.activityIcon, { backgroundColor: resultBg }]}>
+                    <Ionicons name={resultIcon} size={14} color={resultColor} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.activityTopRow}>
+                      <Text style={styles.activityText}>
+                        {resultLabel}{opponentNames ? ` vs ${opponentNames}` : ' a match'}
+                      </Text>
+                      {formatLabel && (
+                        <View style={styles.formatBadge}>
+                          <Text style={styles.formatBadgeText}>{formatLabel}</Text>
+                        </View>
+                      )}
+                    </View>
+                    {partnerName && (
+                      <Text style={styles.activityPartner}>Partner: {partnerName}</Text>
+                    )}
+                    {a.caption ? (
+                      <Text style={styles.activityNotes} numberOfLines={1}>{a.caption}</Text>
+                    ) : null}
+                    <View style={styles.activityFooter}>
+                      <Text style={styles.activityTime}>{activityDate ? timeAgo(activityDate) : 'Just now'}</Text>
+                      <View style={styles.activityReactions}>
+                        <Text style={styles.reactionText}>🔥 {reactions.fire}</Text>
+                        {reactions.trophy > 0 && <Text style={styles.reactionText}>🏆 {reactions.trophy}</Text>}
+                      </View>
+                    </View>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityText}>
-                    {a.result === 'win'
-                      ? 'Won'
-                      : a.result === 'loss'
-                      ? 'Lost'
-                      : 'Drew'}{' '}
-                    {a.opponent ? `vs ${a.opponent}` : 'a match'}
-                    {a.isBest ? ' ⭐ Best session' : ''}
-                  </Text>
-                  {a.notes ? (
-                    <Text style={styles.activityNotes}>{a.notes}</Text>
-                  ) : null}
-                </View>
-                <Text style={styles.activityTime}>{timeAgo(a.date)}</Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -566,6 +577,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   activityIcon: {
     width: 28,
@@ -575,9 +588,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activityText: { color: colors.textPrimary, fontSize: 12, fontWeight: '600' },
+  activityTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  activityText: { color: colors.textPrimary, fontSize: 12, fontWeight: '600', flex: 1 },
+  activityPartner: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
   activityNotes: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  activityFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
   activityTime: { color: colors.textFaint, fontSize: 10 },
+  activityReactions: { flexDirection: 'row', gap: 8 },
+  reactionText: { fontSize: 11, color: colors.textMuted },
+  formatBadge: { backgroundColor: colors.bgTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  formatBadgeText: { color: colors.textFaint, fontSize: 9, fontWeight: '700' },
   emptyFeed: { marginHorizontal: spacing.lg, paddingVertical: spacing.lg },
   emptyFeedText: { color: colors.textFaint, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   emptyMoments: {

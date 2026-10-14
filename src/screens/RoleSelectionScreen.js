@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +36,8 @@ const ROLES = [
 ];
 
 export default function RoleSelectionScreen({ navigation }) {
+  const [selectedRole, setSelectedRole] = useState(null);
+
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.body}>
@@ -50,21 +52,24 @@ export default function RoleSelectionScreen({ navigation }) {
               activeOpacity={role.enabled ? 0.7 : 1}
               disabled={!role.enabled}
               onPress={() => {
-                if (role.key === 'athlete') {
-                  navigation.navigate('Identity');
+                if (role.enabled) {
+                  setSelectedRole(role.key);
+                  if (role.key === 'athlete') {
+                    navigation.navigate('Identity');
+                  }
                 }
               }}
             >
               <View
                 style={[
                   styles.iconWrap,
-                  role.enabled && { backgroundColor: '#14532d' },
+                  selectedRole === role.key && { backgroundColor: '#14532d' },
                 ]}
               >
                 <Ionicons
                   name={role.icon}
                   size={20}
-                  color={role.enabled ? '#86efac' : colors.textMuted}
+                  color={selectedRole === role.key ? '#86efac' : role.enabled ? colors.textSecondary : colors.textMuted}
                 />
               </View>
               <View style={styles.cardText}>
