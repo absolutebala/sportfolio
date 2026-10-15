@@ -6,10 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { OnboardingProvider, useOnboarding } from '../context/OnboardingContext';
 
-// Auth screens
 import LoginScreen from '../screens/LoginScreen';
-
-// Onboarding screens
 import WelcomeScreen from '../screens/WelcomeScreen';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import IdentityScreen from '../screens/IdentityScreen';
@@ -18,8 +15,6 @@ import LevelSelectionScreen from '../screens/LevelSelectionScreen';
 import ClubScreen from '../screens/ClubScreen';
 import ProfileBuilderScreen from '../screens/ProfileBuilderScreen';
 import BuildingProfileScreen from '../screens/BuildingProfileScreen';
-
-// Main app
 import MainTabNavigator from './MainTabNavigator';
 import PostNavigator from './PostNavigator';
 import LogMatchScreen from '../screens/LogMatchScreen';
@@ -32,27 +27,25 @@ const SCREEN_OPTIONS = {
   contentStyle: { backgroundColor: '#0a0d14' },
 };
 
-// ── Inner navigator — needs both auth + onboarding contexts ─────────────────
 function AppNavigator() {
   const { user, loading: authLoading } = useAuth();
   const { data, loaded: onboardingLoaded } = useOnboarding();
 
-  // Wait for both auth session check and AsyncStorage onboarding load
+  // Show spinner until both auth state and AsyncStorage are ready
   if (authLoading || !onboardingLoaded) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#0d0a1a', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#7c3aed" size="large" />
+      <View style={{ flex: 1, backgroundColor: '#0a0d14', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color="#f97316" size="large" />
       </View>
     );
   }
 
+  // Conditional screen sets — React Navigation re-evaluates this on every state change
   return (
     <Stack.Navigator screenOptions={SCREEN_OPTIONS}>
       {!user ? (
-        // ── Not signed in: show Login ──
         <Stack.Screen name="Login" component={LoginScreen} />
       ) : !data.profileComplete ? (
-        // ── Signed in but onboarding incomplete ──
         <>
           <Stack.Screen name="Welcome" component={WelcomeScreen} />
           <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
@@ -64,7 +57,6 @@ function AppNavigator() {
           <Stack.Screen name="BuildingProfile" component={BuildingProfileScreen} />
         </>
       ) : (
-        // ── Fully onboarded: main app + modals ──
         <>
           <Stack.Screen name="MainApp" component={MainTabNavigator} />
           <Stack.Screen
@@ -83,7 +75,6 @@ function AppNavigator() {
   );
 }
 
-// ── Root — provides both contexts ───────────────────────────────────────────
 export default function RootNavigator() {
   return (
     <AuthProvider>
