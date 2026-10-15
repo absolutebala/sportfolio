@@ -46,45 +46,39 @@ function AppNavigator() {
     );
   }
 
-  // Determine initial route
-  let initialRouteName;
-  if (!user) {
-    initialRouteName = 'Login';
-  } else if (!data.profileComplete) {
-    initialRouteName = 'Welcome';
-  } else {
-    initialRouteName = 'MainApp';
-  }
-
   return (
-    <Stack.Navigator initialRouteName={initialRouteName} screenOptions={SCREEN_OPTIONS}>
-      {/* ── Auth ── */}
-      <Stack.Screen name="Login" component={LoginScreen} />
-
-      {/* ── Onboarding ── */}
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
-      <Stack.Screen name="Identity" component={IdentityScreen} />
-      <Stack.Screen name="SportSelection" component={SportSelectionScreen} />
-      <Stack.Screen name="LevelSelection" component={LevelSelectionScreen} />
-      <Stack.Screen name="ClubSearch" component={ClubScreen} />
-      <Stack.Screen name="ProfileBuilder" component={ProfileBuilderScreen} />
-      <Stack.Screen name="BuildingProfile" component={BuildingProfileScreen} />
-
-      {/* ── Main app ── */}
-      <Stack.Screen name="MainApp" component={MainTabNavigator} />
-
-      {/* ── Modals ── */}
-      <Stack.Screen
-        name="LogMatch"
-        component={LogMatchScreen}
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen
-        name="Post"
-        component={PostNavigator}
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
+    <Stack.Navigator screenOptions={SCREEN_OPTIONS}>
+      {!user ? (
+        // ── Not signed in: show Login ──
+        <Stack.Screen name="Login" component={LoginScreen} />
+      ) : !data.profileComplete ? (
+        // ── Signed in but onboarding incomplete ──
+        <>
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+          <Stack.Screen name="Identity" component={IdentityScreen} />
+          <Stack.Screen name="SportSelection" component={SportSelectionScreen} />
+          <Stack.Screen name="LevelSelection" component={LevelSelectionScreen} />
+          <Stack.Screen name="ClubSearch" component={ClubScreen} />
+          <Stack.Screen name="ProfileBuilder" component={ProfileBuilderScreen} />
+          <Stack.Screen name="BuildingProfile" component={BuildingProfileScreen} />
+        </>
+      ) : (
+        // ── Fully onboarded: main app + modals ──
+        <>
+          <Stack.Screen name="MainApp" component={MainTabNavigator} />
+          <Stack.Screen
+            name="LogMatch"
+            component={LogMatchScreen}
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="Post"
+            component={PostNavigator}
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+        </>
+      )}
     </Stack.Navigator>
   );
 }
