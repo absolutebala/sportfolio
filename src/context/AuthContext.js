@@ -1,84 +1,100 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
+import { makeRedirectUri } from 'expo-auth-session';
 import { supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const AuthContext = createContext(null);
 
+const REDIRECT_URI = 'com.idataone.sportfolio://auth/callback';
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Prevent getSession() from overwriting a session already set by onAuthStateChange
+  const sessionReady = useRef(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 1. Listen for auth state changes — this is the single source of truth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔄 onAuthStateChange:', event, session?.user?.email ?? 'no user');
+      sessionReady.current = true;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('🔄 onAuthStateChange:', _event, session?.user?.email ?? 'no user');
-      setSession(session);
-      setUser(session?.user ?? null);
+    // 2. Seed initial state from persisted session (AsyncStorage)
+    //    Only applies if onAuthStateChange hasn't already fired
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!sessionReady.current) {
+        console.log('📦 getSession seed:', session?.user?.email ?? 'no session');
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   async function signInWithGoogle() {
-    // Standalone APK uses the app scheme; Expo Go uses exp://
-    const isExpoGo = AuthSession.makeRedirectUri().startsWith('exp://');
-    const redirectUrl = isExpoGo
-      ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
-      : 'com.idataone.sportfolio://auth/callback';
+    const redirectUrl = makeRedirectUri().startsWith('exp://')
+      ? makeRedirectUri({ path: 'auth/callback' })
+      : REDIRECT_URI;
+
     console.log('🔵 redirectUrl:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: redirectUrl,
-        skipBrowserRedirect: true,
-      },
+      options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+
+    console.log('🟢 OAuth URL:', data.url);
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+    console.log('🟡 browser result type:', result.type);
+
+    if (result.type !== 'success') {
+      if (result.type === 'cancel') throw new Error('Sign-in was cancelled.');
+      return;
+    }
+
+    // Extract tokens from the redirect URL fragment
+    const fragment = result.url.split('#')[1] ?? '';
+    const params = new URLSearchParams(fragment);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+
+    console.log('🔑 accessToken present:', !!accessToken);
+    if (!accessToken) {
+      console.warn('⚠️ No access_token in redirect URL');
+      return;
+    }
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
     });
 
-    if (error) throw error;
-    console.log('🟢 OAuth URL:', data.url);
+    if (sessionError) {
+      console.warn('❌ setSession error:', sessionError.message);
+      throw sessionError;
+    }
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-    console.log('🟡 result:', JSON.stringify(result));
-
-    if (result.type === 'success') {
-      const url = result.url;
-      const fragmentMatch = url.match(/#(.+)/);
-      const paramStr = fragmentMatch?.[1] || '';
-      const params = new URLSearchParams(paramStr);
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      console.log('🔑 accessToken found:', !!accessToken);
-      if (accessToken) {
-        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        console.log('✅ setSession result:', sessionData?.user?.email, sessionError?.message);
-        if (sessionError) throw sessionError;
-        // Manually update state in case onAuthStateChange doesn't fire
-        if (sessionData?.session) {
-          setSession(sessionData.session);
-          setUser(sessionData.session.user);
-        }
-      }
-    } else if (result.type === 'cancel') {
-      throw new Error('Sign-in was cancelled.');
+    console.log('✅ setSession ok:', sessionData?.user?.email);
+    // onAuthStateChange will fire and update state — but set it directly too as a fallback
+    if (sessionData?.session) {
+      sessionReady.current = true;
+      setSession(sessionData.session);
+      setUser(sessionData.session.user);
     }
   }
 
   async function signOut() {
+    sessionReady.current = false;
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }
