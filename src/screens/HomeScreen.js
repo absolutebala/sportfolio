@@ -1,545 +1,238 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  SafeAreaView, ActivityIndicator, RefreshControl, Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, typography, fonts, getSportColors } from '../theme';
-import { useOnboarding } from '../context/OnboardingContext';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { colors, fonts, spacing, radius } from '../theme';
 
-// ─── My Activity Card ──────────────────────────────────────────────────────
-function timeAgo(date) {
-  if (!date) return 'Just now';
-  const diffMs = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
+const SPORT_COLOR = { badminton: colors.badminton, cricket: colors.cricket };
+const SPORT_ICON = { badminton: '🏸', cricket: '🏏' };
 
-function MyActivityCard({ activity, sc }) {
-  const resultEmoji = activity.result === 'win' ? '🏆' : activity.result === 'loss' ? '💪' : '➡️';
-  const resultColor = activity.result === 'win' ? '#22c55e' : activity.result === 'loss' ? '#f97316' : colors.textSecondary;
-  const resultLabel = activity.result === 'win' ? 'Won' : activity.result === 'loss' ? 'Lost' : 'Drew';
-  const sportSc = getSportColors(activity.sport || 'badminton');
-  const opponentNames = activity.opponents?.length
-    ? activity.opponents.map((p) => p.name.split(' ')[0]).join(' & ')
-    : null;
-  const partnerName = activity.partners?.length ? activity.partners[0].name.split(' ')[0] : null;
-  const activityDate = activity.timestamp || activity.date;
-  const reactions = activity.reactions || { fire: 0, trophy: 0 };
-
-  let scoreText = '';
-  if (activity.sportType === 'racquet' && activity.gamesPlayed) {
-    scoreText = `${activity.gamesWon ?? 0}/${activity.gamesPlayed ?? 0} games`;
-  } else if (activity.sportType === 'team' && (activity.myScore || activity.theirScore)) {
-    scoreText = `${activity.myScore ?? 0} – ${activity.theirScore ?? 0}`;
-  } else if (activity.sportType === 'solo') {
-    scoreText = [activity.soloTime, activity.soloDistance && `${activity.soloDistance} km`].filter(Boolean).join(' · ');
-  }
+function ActivityCard({ item }) {
+  const sport = item.sport ?? 'badminton';
+  const accentColor = SPORT_COLOR[sport] ?? colors.primary;
 
   return (
-    <View style={[styles.myCard, { borderLeftColor: sportSc.accent }]}>
-      <View style={styles.myCardRow}>
-        <View style={[styles.sportDot, { backgroundColor: sportSc.dark }]}>
-          <Text style={{ fontSize: 13 }}>{sportSc.icon || '🏅'}</Text>
+    <View style={styles.card}>
+      {/* Author row */}
+      <View style={styles.cardHeader}>
+        <View style={styles.avatarWrap}>
+          {item.profiles?.avatar_url
+            ? <Image source={{ uri: item.profiles.avatar_url }} style={styles.avatar} />
+            : <View style={[styles.avatarPlaceholder, { backgroundColor: accentColor + '33' }]}>
+                <Text style={[styles.avatarInitial, { color: accentColor }]}>
+                  {(item.profiles?.full_name ?? '?')[0].toUpperCase()}
+                </Text>
+              </View>
+          }
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.myCardCaption} numberOfLines={1}>
-            {resultLabel}{opponentNames ? ` vs ${opponentNames}` : (activity.caption || ' — match logged')}
-          </Text>
-          {partnerName && <Text style={styles.myCardMeta}>Partner: {partnerName}</Text>}
-          {scoreText ? <Text style={styles.myCardScore}>{scoreText}</Text> : null}
-          <View style={styles.myCardFooter}>
-            <Text style={styles.myCardTime}>{timeAgo(activityDate)}</Text>
-            {(reactions.fire > 0 || reactions.trophy > 0) && (
-              <View style={styles.myCardReactions}>
-                {reactions.fire > 0 && <Text style={styles.myCardReactionText}>🔥 {reactions.fire}</Text>}
-                {reactions.trophy > 0 && <Text style={styles.myCardReactionText}>🏆 {reactions.trophy}</Text>}
-              </View>
-            )}
-          </View>
+          <Text style={styles.authorName}>{item.profiles?.full_name ?? 'Player'}</Text>
+          <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
         </View>
-        <Text style={[styles.myCardResult, { color: resultColor }]}>{resultEmoji}</Text>
+        <View style={[styles.sportBadge, { backgroundColor: accentColor + '22', borderColor: accentColor + '55' }]}>
+          <Text style={styles.sportBadgeText}>{SPORT_ICON[sport]} {sport}</Text>
+        </View>
       </View>
-      {activity.personalBest && (
-        <View style={styles.pbBadge}>
-          <Text style={styles.pbBadgeText}>⭐ Personal Best</Text>
+
+      {/* Summary */}
+      <Text style={styles.summary}>{item.summary}</Text>
+
+      {/* Stats row for badminton */}
+      {sport === 'badminton' && item.details && (
+        <View style={styles.statsRow}>
+          {item.details.games_played != null && (
+            <StatChip label="Games" value={item.details.games_played} color={accentColor} />
+          )}
+          {item.details.games_won != null && (
+            <StatChip label="Won" value={item.details.games_won} color={accentColor} />
+          )}
+          {item.details.games_lost != null && (
+            <StatChip label="Lost" value={item.details.games_lost} color={colors.error} />
+          )}
         </View>
       )}
+
+      {/* Stats row for cricket */}
+      {sport === 'cricket' && item.details && (
+        <View style={styles.statsRow}>
+          {item.details.runs != null && (
+            <StatChip label="Runs" value={item.details.runs} color={accentColor} />
+          )}
+          {item.details.wickets != null && (
+            <StatChip label="Wickets" value={item.details.wickets} color={accentColor} />
+          )}
+          {item.details.result && (
+            <StatChip label="Result" value={item.details.result} color={accentColor} />
+          )}
+        </View>
+      )}
+
+      {/* Reaction row */}
+      <View style={styles.reactionRow}>
+        <TouchableOpacity style={styles.reactionBtn}>
+          <Text style={styles.reactionText}>🔥 {item.reaction_count ?? 0}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.reactionBtn}>
+          <Text style={styles.reactionText}>💬 {item.comment_count ?? 0}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
-// ─── Mock feed data ────────────────────────────────────────────────────────
-const MOCK_FEED = [
-  {
-    id: '1',
-    type: 'activity',
-    user: { name: 'Arjun Rajan', sport: 'football', initials: 'AR', avatarColor: '#22c55e' },
-    text: 'Won a match vs FC Tigers 3–1 ⚽',
-    isBest: true,
-    time: '2m ago',
-    reactions: { fire: 12, trophy: 5 },
-  },
-  {
-    id: '2',
-    type: 'activity',
-    user: { name: 'Divya Raj', sport: 'badminton', initials: 'DR', avatarColor: '#fb923c' },
-    text: 'Logged a training session — 8 win streak this week 🏸',
-    isBest: false,
-    time: '18m ago',
-    reactions: { fire: 7, trophy: 2 },
-  },
-  {
-    id: '3',
-    type: 'club_post',
-    club: { name: 'Chennai Smash Club', sport: 'badminton' },
-    text: 'Registration open for the July Open Singles! Limited spots — first come first served.',
-    time: '1h ago',
-    reactions: { fire: 24, trophy: 0 },
-    cta: 'Register',
-  },
-  {
-    id: '4',
-    type: 'activity',
-    user: { name: 'Priya Suresh', sport: 'swimming', initials: 'PS', avatarColor: '#38bdf8' },
-    text: 'New PB — 56.2s in 100m freestyle 🏊',
-    isBest: true,
-    time: '3h ago',
-    reactions: { fire: 31, trophy: 14 },
-  },
-  {
-    id: '5',
-    type: 'moment',
-    user: { name: 'Karthik Nair', sport: 'cricket', initials: 'KN', avatarColor: '#a3e635' },
-    text: 'Match day vibes 🏏',
-    time: '5h ago',
-    reactions: { fire: 9, trophy: 1 },
-    hasPhoto: true,
-  },
-  {
-    id: '6',
-    type: 'activity',
-    user: { name: 'Meena Bose', sport: 'tennis', initials: 'MB', avatarColor: '#f59e0b' },
-    text: 'Won the quarterfinal at Besant Nagar Club tournament 🎾',
-    isBest: true,
-    time: '8h ago',
-    reactions: { fire: 18, trophy: 9 },
-  },
-];
-
-function Avatar({ user, size = 40 }) {
-  const sc = getSportColors(user.sport);
+function StatChip({ label, value, color }) {
   return (
-    <View
-      style={[
-        styles.avatar,
-        { width: size, height: size, borderRadius: size / 2, borderColor: sc.accent },
-      ]}
-    >
-      <Text style={[styles.avatarText, { fontSize: size * 0.35, color: sc.accent }]}>
-        {user.initials}
-      </Text>
+    <View style={[styles.statChip, { borderColor: color + '44' }]}>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
-function FeedCard({ item }) {
-  const [reacted, setReacted] = useState(null);
-  const sc = item.user ? getSportColors(item.user.sport) : getSportColors('badminton');
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
 
-  if (item.type === 'club_post') {
+export default function HomeScreen() {
+  const { user } = useAuth();
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchFeed = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('activities')
+      .select(`
+        *,
+        profiles ( full_name, avatar_url )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.warn('[Feed] fetch error:', error.message);
+    } else {
+      setActivities(data ?? []);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchFeed().finally(() => setLoading(false));
+  }, [fetchFeed]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchFeed();
+    setRefreshing(false);
+  }, [fetchFeed]);
+
+  if (loading) {
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.clubBadge, { backgroundColor: sc.dark }]}>
-            <Ionicons name="shield" size={14} color={sc.accent} />
-          </View>
-          <View style={styles.cardMeta}>
-            <Text style={styles.cardName}>{item.club.name}</Text>
-            <Text style={styles.cardTime}>{item.time}</Text>
-          </View>
-          <View style={[styles.clubTag, { backgroundColor: sc.dark }]}>
-            <Text style={[styles.clubTagText, { color: sc.accent }]}>Club</Text>
-          </View>
-        </View>
-        <Text style={styles.cardText}>{item.text}</Text>
-        <View style={styles.cardActions}>
-          <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: sc.accent }]}>
-            <Text style={styles.ctaBtnText}>{item.cta}</Text>
-          </TouchableOpacity>
-          <ReactionRow item={item} reacted={reacted} setReacted={setReacted} sc={sc} />
-        </View>
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Avatar user={item.user} />
-        <View style={styles.cardMeta}>
-          <View style={styles.nameRow}>
-            <Text style={styles.cardName}>{item.user.name}</Text>
-            {item.isBest && (
-              <View style={styles.bestBadge}>
-                <Text style={styles.bestBadgeText}>⭐ Best</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.cardTime}>{item.time}</Text>
-        </View>
-      </View>
-
-      {item.hasPhoto && (
-        <View style={styles.photoPlaceholder}>
-          <Ionicons name="image-outline" size={32} color={colors.textFaint} />
-        </View>
-      )}
-
-      <Text style={styles.cardText}>{item.text}</Text>
-
-      <View style={styles.cardFooter}>
-        <ReactionRow item={item} reacted={reacted} setReacted={setReacted} sc={sc} />
-      </View>
-    </View>
-  );
-}
-
-function ReactionRow({ item, reacted, setReacted, sc }) {
-  return (
-    <View style={styles.reactions}>
-      <TouchableOpacity
-        style={[styles.reactionBtn, reacted === 'fire' && { backgroundColor: sc.dark }]}
-        onPress={() => setReacted(reacted === 'fire' ? null : 'fire')}
-      >
-        <Text style={styles.reactionEmoji}>🔥</Text>
-        <Text style={[styles.reactionCount, reacted === 'fire' && { color: sc.accent }]}>
-          {item.reactions.fire + (reacted === 'fire' ? 1 : 0)}
-        </Text>
-      </TouchableOpacity>
-      {item.reactions.trophy > 0 && (
-        <TouchableOpacity
-          style={[styles.reactionBtn, reacted === 'trophy' && { backgroundColor: sc.dark }]}
-          onPress={() => setReacted(reacted === 'trophy' ? null : 'trophy')}
-        >
-          <Text style={styles.reactionEmoji}>🏆</Text>
-          <Text style={[styles.reactionCount, reacted === 'trophy' && { color: sc.accent }]}>
-            {item.reactions.trophy + (reacted === 'trophy' ? 1 : 0)}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-export default function HomeScreen({ navigation }) {
-  const { data } = useOnboarding();
-  const primarySportKey = data.sports?.[0] || 'badminton';
-  const sc = getSportColors(primarySportKey);
-  const firstName = data.name?.split(' ')[0] || 'Athlete';
-  const recentActivities = (data.activities || []).slice(0, 3);
-
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.greetingName}>{firstName} 👋</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerBtn}>
-            <Ionicons name="search-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn}>
-            <View style={styles.notifDot} />
-            <Ionicons name="notifications-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
+        <View style={styles.logoRow}>
+          <View style={styles.logoMark}><Text style={styles.logoS}>S</Text></View>
+          <Text style={styles.logoText}>Sportfolio</Text>
         </View>
       </View>
 
-      {/* Zone pills */}
-      <View style={styles.zonePillsWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.zonePills}
-        >
-          {['For You', 'Following', 'Clubs', 'Tournaments'].map((z, i) => (
-            <TouchableOpacity
-              key={z}
-              style={[styles.zonePill, i === 0 && { backgroundColor: colors.purple900, borderColor: colors.accent }]}
-            >
-              <Text style={[styles.zonePillText, i === 0 && { color: colors.accent }]}>{z}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Feed */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.feed}
-      >
-        {/* ── My Recent Activity ── */}
-        {recentActivities.length > 0 ? (
-          <View style={styles.mySection}>
-            <View style={styles.mySectionHeader}>
-              <Text style={styles.mySectionTitle}>My Recent Activity</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('LogMatch')}>
-                <Text style={[styles.mySectionLink, { color: sc.accent }]}>+ Log</Text>
-              </TouchableOpacity>
-            </View>
-            {recentActivities.map((act, i) => (
-              <MyActivityCard key={act.id || i} activity={act} sc={sc} />
-            ))}
+      <FlatList
+        data={activities}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => <ActivityCard item={item} />}
+        contentContainerStyle={activities.length === 0 ? styles.emptyContainer : styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>🏟️</Text>
+            <Text style={styles.emptyTitle}>No activities yet</Text>
+            <Text style={styles.emptySub}>Log your first game and it'll appear here</Text>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.logPrompt, { borderColor: sc.accent + '55' }]}
-            onPress={() => navigation.navigate('LogMatch')}
-          >
-            <View style={[styles.logPromptIcon, { backgroundColor: sc.dark }]}>
-              <Ionicons name="add" size={22} color={sc.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.logPromptTitle}>Log your first activity</Text>
-              <Text style={styles.logPromptSub}>Record a match, run, or session</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
-
-        {/* ── Community Feed ── */}
-        <Text style={styles.feedSectionTitle}>What's happening</Text>
-
-        {MOCK_FEED.map((item) => (
-          <FeedCard key={item.id} item={item} />
-        ))}
-
-        <View style={styles.feedEnd}>
-          <Text style={styles.feedEndText}>You're all caught up ✓</Text>
-        </View>
-      </ScrollView>
-
+        }
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bgPrimary },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
 
-  // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  greeting: { fontFamily: fonts.medium, fontSize: 12, color: colors.textMuted },
-  greetingName: { fontFamily: fonts.bold, fontSize: 18, color: colors.textPrimary, marginTop: 1 },
-  headerRight: { flexDirection: 'row', gap: spacing.sm },
-  headerBtn: { padding: spacing.sm, position: 'relative' },
-  notifDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.error,
-    zIndex: 1,
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoMark: {
+    width: 28, height: 28, borderRadius: 6,
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
   },
+  logoS: { fontFamily: fonts.bold, fontSize: 16, color: '#fff' },
+  logoText: { fontFamily: fonts.bold, fontSize: 18, color: colors.text },
 
-  // Zone pills
-  zonePillsWrapper: {
-    height: 48,
-  },
-  zonePills: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    gap: spacing.sm,
-    alignItems: 'center',
-  },
-  zonePill: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm - 2,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  zonePillText: {
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
+  list: { padding: spacing.md, gap: spacing.md },
+  emptyContainer: { flex: 1 },
 
-  // Feed
-  feed: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
-
-  // Card
   card: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    padding: spacing.md, gap: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
-  avatar: {
-    backgroundColor: colors.bgTertiary,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  avatarText: { fontFamily: fonts.bold },
-  cardMeta: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  cardName: { fontFamily: fonts.bold, fontSize: 14, color: colors.textPrimary },
-  cardTime: { fontFamily: fonts.regular, fontSize: 11, color: colors.textFaint, marginTop: 2 },
-  bestBadge: {
-    backgroundColor: '#78350f',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-  },
-  bestBadgeText: { fontFamily: fonts.semiBold, fontSize: 10, color: colors.accentGold },
-  cardText: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md },
-
-  // Photo placeholder
-  photoPlaceholder: {
-    height: 160,
-    backgroundColor: colors.bgTertiary,
-    borderRadius: radius.lg,
-    marginBottom: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Footer / reactions
-  cardFooter: {},
-  cardActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  reactions: { flexDirection: 'row', gap: spacing.sm },
-  reactionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    backgroundColor: colors.bgTertiary,
-  },
-  reactionEmoji: { fontSize: 13 },
-  reactionCount: { fontFamily: fonts.semiBold, fontSize: 12, color: colors.textSecondary },
-
-  // Club card specifics
-  clubBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  clubTag: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-  },
-  clubTagText: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 0.4 },
-  ctaBtn: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-  },
-  ctaBtnText: { fontFamily: fonts.bold, fontSize: 13, color: '#fff' },
-
-  // End
-  feedEnd: { alignItems: 'center', paddingVertical: spacing.xxl },
-  feedEndText: { fontFamily: fonts.medium, fontSize: 12, color: colors.textFaint },
-
-  // My Recent Activity section
-  mySection: { marginBottom: spacing.lg },
-  mySectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  mySectionTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.textPrimary },
-  mySectionLink: { fontFamily: fonts.semiBold, fontSize: 13 },
-  myCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderLeftWidth: 3,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  myCardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  sportDot: {
-    width: 34, height: 34, borderRadius: 17,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  myCardCaption: { fontFamily: fonts.semiBold, fontSize: 13, color: colors.textPrimary },
-  myCardScore: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  myCardResult: { fontSize: 20 },
-  myCardMeta: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  myCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
-  myCardTime: { fontFamily: fonts.regular, fontSize: 10, color: colors.textFaint },
-  myCardReactions: { flexDirection: 'row', gap: 8 },
-  myCardReactionText: { fontSize: 11, color: colors.textMuted },
-  pbBadge: {
-    marginTop: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: '#78350f',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-  },
-  pbBadgeText: { fontFamily: fonts.semiBold, fontSize: 10, color: '#fbbf24' },
-
-  // Log prompt (when no activities yet)
-  logPrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  logPromptIcon: {
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  avatarWrap: {},
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  avatarPlaceholder: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
   },
-  logPromptTitle: { fontFamily: fonts.semiBold, fontSize: 14, color: colors.textPrimary },
-  logPromptSub: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  avatarInitial: { fontFamily: fonts.bold, fontSize: 16 },
+  authorName: { fontFamily: fonts.semiBold, fontSize: 14, color: colors.text },
+  cardDate: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: 1 },
 
-  // Feed section title
-  feedSectionTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
+  sportBadge: {
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: radius.full, borderWidth: 1,
   },
+  sportBadgeText: { fontFamily: fonts.medium, fontSize: 11, color: colors.textSecondary },
 
+  summary: { fontFamily: fonts.regular, fontSize: 14, color: colors.text, lineHeight: 20 },
+
+  statsRow: { flexDirection: 'row', gap: spacing.sm },
+  statChip: {
+    alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: radius.md, borderWidth: 1, backgroundColor: colors.bgMuted,
+    minWidth: 56,
+  },
+  statValue: { fontFamily: fonts.bold, fontSize: 18 },
+  statLabel: { fontFamily: fonts.regular, fontSize: 10, color: colors.textMuted, marginTop: 1 },
+
+  reactionRow: { flexDirection: 'row', gap: spacing.md, paddingTop: spacing.xs },
+  reactionBtn: { flexDirection: 'row', alignItems: 'center' },
+  reactionText: { fontFamily: fonts.medium, fontSize: 13, color: colors.textSecondary },
+
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl, gap: spacing.md },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontFamily: fonts.semiBold, fontSize: 18, color: colors.text },
+  emptySub: { fontFamily: fonts.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });

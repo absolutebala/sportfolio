@@ -1,724 +1,186 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Modal,
-  Keyboard,
-  TouchableWithoutFeedback,
-  Platform,
-  KeyboardAvoidingView,
-  Image,
-  Dimensions,
+  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  TouchableOpacity, Image, FlatList, ActivityIndicator, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius } from '../theme';
-import { useOnboarding } from '../context/OnboardingContext';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { SPORTS } from '../data/onboardingData';
-import { pickImage } from '../utils/imagePicker';
+import { useProfile } from '../context/ProfileContext';
+import { colors, fonts, spacing, radius } from '../theme';
 
-const NAV_ITEMS = [
-  { key: 'home', icon: 'home', label: 'Home' },
-  { key: 'discover', icon: 'compass-outline', label: 'Discover' },
-  { key: 'post', icon: 'add-circle-outline', label: 'Post' },
-  { key: 'clubs', icon: 'people-outline', label: 'Clubs' },
-  { key: 'profile', icon: 'person-outline', label: 'Profile' },
-];
+const SPORT_ICON = { badminton: '🏸', cricket: '🏏' };
+const SPORT_COLOR = { badminton: colors.badminton, cricket: colors.cricket };
 
-function initials(name) {
-  if (!name) return '??';
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('');
-}
+export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
+  const { profile } = useProfile();
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-function timeAgo(date) {
-  const diffMs = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('activities')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data, error }) => {
+        if (error) console.warn('[Profile] activities error:', error.message);
+        setActivities(data ?? []);
+        setLoading(false);
+      });
+  }, [user]);
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const MOMENT_GAP = 8;
-const MOMENT_MARGIN = 16;
-const MOMENT_TILE_SIZE =
-  (SCREEN_WIDTH - MOMENT_MARGIN * 2 - MOMENT_GAP * 2) / 3;
-
-export default function ProfileScreen({ navigation }) {
-  const { data, update, addMoment: addMomentToList } = useOnboarding();
-  const { signOut } = useAuth();
-  const [bioModalOpen, setBioModalOpen] = useState(false);
-  const [bioDraft, setBioDraft] = useState(data.bio);
-  const [nameModalOpen, setNameModalOpen] = useState(false);
-  const [nameDraft, setNameDraft] = useState(data.name);
-
-  const level = data.level || 'recreational';
-  const primarySportKey = data.sports[0] || 'badminton';
-  const primarySport = SPORTS.find((s) => s.key === primarySportKey);
-
-  const matches = data.activities.length;
-  const wins = data.activities.filter((a) => a.result === 'win').length;
-  const bestSessions = data.activities.filter((a) => a.isBest).length;
-
-  function saveBio() {
-    update({ bio: bioDraft.trim() });
-    setBioModalOpen(false);
-  }
-
-  function saveName() {
-    if (nameDraft.trim().length > 0) {
-      update({ name: nameDraft.trim() });
-    }
-    setNameModalOpen(false);
-  }
-
-  function editAvatar() {
-    pickImage({
-      aspect: [1, 1],
-      onPicked: (uri) => update({ avatarUri: uri }),
-    });
-  }
-
-  function editCover() {
-    pickImage({
-      aspect: [16, 9],
-      onPicked: (uri) => update({ coverUri: uri }),
-    });
-  }
-
-  function addMoment() {
-    pickImage({
-      aspect: [4, 5],
-      onPicked: (uri) => {
-        addMomentToList({ id: Date.now().toString(), uri, date: new Date() });
-      },
-    });
+  function handleSignOut() {
+    Alert.alert('Sign out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: signOut },
+    ]);
   }
 
   return (
-    <SafeAreaView style={styles.root}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.topbar}>
-          <Text style={styles.topbarTitle}>MY PROFILE</Text>
-          <View style={styles.topbarIcons}>
-            <Ionicons name="share-outline" size={18} color={colors.textMuted} />
-            <TouchableOpacity
-              onPress={async () => {
-                await signOut();
-                navigation.replace('Login');
-              }}
-              hitSlop={8}
-            >
-              <Ionicons name="log-out-outline" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.hero}>
-          {data.coverUri && (
-            <Image source={{ uri: data.coverUri }} style={styles.coverImage} resizeMode="cover" />
-          )}
-          <TouchableOpacity style={styles.coverEdit} onPress={editCover}>
-            <Ionicons name="camera-outline" size={13} color="#fed7aa" />
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
+            <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatar}>
-              {data.avatarUri ? (
-                <Image source={{ uri: data.avatarUri }} style={styles.avatarImage} resizeMode="cover" />
-              ) : (
-                <Text style={styles.avatarText}>{initials(data.name)}</Text>
-              )}
-            </View>
-            <TouchableOpacity style={styles.avatarEdit} onPress={editAvatar}>
-              <Ionicons name="pencil" size={11} color="#431407" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.sportBadge}>
-            <Text style={styles.sportBadgeText}>
-              {primarySport?.label || 'Sport'}
-            </Text>
-          </View>
         </View>
 
+        {/* Avatar + name */}
         <View style={styles.profileCard}>
-          <View style={styles.pnameRow}>
-            <View>
-              <Text style={styles.pname}>{data.name || 'Your name'}</Text>
-              <Text style={styles.pmeta}>
-                {level === 'competitive' ? 'Competitive' : 'Recreational'} ·{' '}
-                {data.city.split(',')[0]}, {data.city.split(',')[1]?.trim() || 'India'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => {
-                setNameDraft(data.name);
-                setNameModalOpen(true);
-              }}
-              hitSlop={8}
-            >
-              <Ionicons name="pencil" size={14} color={colors.textFaint} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.bioRow}>
-            <Text style={styles.bioText}>
-              {data.bio || 'Add a short bio so other players know a bit about you.'}
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setBioDraft(data.bio);
-                setBioModalOpen(true);
-              }}
-              hitSlop={8}
-            >
-              <Ionicons name="pencil" size={13} color={colors.textFaint} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{matches}</Text>
-              <Text style={styles.statLabel}>Matches</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{wins}</Text>
-              <Text style={styles.statLabel}>Wins</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statNum}>{bestSessions}</Text>
-              <Text style={styles.statLabel}>Best sessions</Text>
-            </View>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>FAVOURITE SPORTS</Text>
-        <View style={styles.favRow}>
-          {data.sports.length === 0 && (
-            <Text style={styles.emptyInlineText}>No sports added yet</Text>
-          )}
-          {data.sports.map((key) => {
-            const s = SPORTS.find((sp) => sp.key === key);
-            if (!s) return null;
-            return (
-              <View key={key} style={styles.favChip}>
-                <Ionicons name={s.icon} size={13} color="#fed7aa" />
-                <Text style={styles.favChipText}>{s.label}</Text>
+          {profile?.avatar_url
+            ? <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+            : <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitial}>
+                  {(profile?.full_name ?? user?.email ?? '?')[0].toUpperCase()}
+                </Text>
               </View>
-            );
-          })}
-        </View>
+          }
+          <Text style={styles.name}>{profile?.full_name ?? 'Player'}</Text>
+          <Text style={styles.email}>{user?.email}</Text>
 
-        <Text style={styles.sectionTitle}>RECENT ACTIVITY</Text>
-        {data.activities.length === 0 ? (
-          <View style={styles.emptyFeed}>
-            <Text style={styles.emptyFeedText}>
-              Your activity log is empty.{'\n'}Play a match and log it to build your
-              passport.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.activityList}>
-            {data.activities.map((a, i) => {
-              const resultColor = a.result === 'win' ? '#86efac' : a.result === 'loss' ? '#fca5a5' : '#cbd5e1';
-              const resultBg = a.result === 'win' ? '#14532d' : a.result === 'loss' ? '#450a0a' : colors.bgTertiary;
-              const resultIcon = a.result === 'win' ? 'trophy' : a.result === 'loss' ? 'close' : 'remove';
-              const resultLabel = a.result === 'win' ? 'Won' : a.result === 'loss' ? 'Lost' : 'Drew';
-              const opponentNames = a.opponents?.length
-                ? a.opponents.map((p) => p.name.split(' ')[0]).join(' & ')
-                : null;
-              const partnerName = a.partners?.length ? a.partners[0].name.split(' ')[0] : null;
-              const activityDate = a.timestamp || a.date;
-              const formatLabel = a.matchFormat === 'doubles' ? 'Doubles' : a.matchFormat === 'singles' ? 'Singles' : null;
-              const reactions = a.reactions || { fire: Math.floor(Math.random() * 8), trophy: a.result === 'win' ? Math.floor(Math.random() * 4) : 0 };
-              return (
-                <View key={i} style={styles.activityItem}>
-                  <View style={[styles.activityIcon, { backgroundColor: resultBg }]}>
-                    <Ionicons name={resultIcon} size={14} color={resultColor} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.activityTopRow}>
-                      <Text style={styles.activityText}>
-                        {resultLabel}{opponentNames ? ` vs ${opponentNames}` : ' a match'}
-                      </Text>
-                      {formatLabel && (
-                        <View style={styles.formatBadge}>
-                          <Text style={styles.formatBadgeText}>{formatLabel}</Text>
-                        </View>
-                      )}
-                    </View>
-                    {partnerName && (
-                      <Text style={styles.activityPartner}>Partner: {partnerName}</Text>
-                    )}
-                    {a.caption ? (
-                      <Text style={styles.activityNotes} numberOfLines={1}>{a.caption}</Text>
-                    ) : null}
-                    <View style={styles.activityFooter}>
-                      <Text style={styles.activityTime}>{activityDate ? timeAgo(activityDate) : 'Just now'}</Text>
-                      <View style={styles.activityReactions}>
-                        <Text style={styles.reactionText}>🔥 {reactions.fire}</Text>
-                        {reactions.trophy > 0 && <Text style={styles.reactionText}>🏆 {reactions.trophy}</Text>}
-                      </View>
-                    </View>
-                  </View>
+          {/* Sport badges */}
+          {profile?.sports?.length > 0 && (
+            <View style={styles.sportBadges}>
+              {profile.sports.map(s => (
+                <View key={s} style={[styles.sportBadge, { borderColor: (SPORT_COLOR[s] ?? colors.primary) + '55' }]}>
+                  <Text style={styles.sportBadgeText}>{SPORT_ICON[s] ?? '🏅'} {s}</Text>
                 </View>
-              );
-            })}
-          </View>
-        )}
-
-        <View style={styles.momentsHeaderRow}>
-          <Text style={[styles.sectionTitle, { marginHorizontal: 0 }]}>MOMENTS</Text>
-          {data.moments.length > 0 && (
-            <TouchableOpacity onPress={addMoment} hitSlop={8}>
-              <Ionicons name="add-circle-outline" size={18} color="#fb923c" />
-            </TouchableOpacity>
+              ))}
+            </View>
           )}
+
+          {profile?.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
         </View>
 
-        {data.moments.length === 0 ? (
-          <View style={styles.emptyMoments}>
-            <Ionicons name="camera-outline" size={22} color={colors.textFaint} />
-            <Text style={styles.emptyTitle}>No moments yet</Text>
-            <Text style={styles.emptySub}>Photos from your games will show up here</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={addMoment}>
-              <Text style={styles.emptyBtnText}>Add a moment</Text>
-            </TouchableOpacity>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <StatBox label="Activities" value={activities.length} />
+          <StatBox label="Sports" value={profile?.sports?.length ?? 0} />
+        </View>
+
+        {/* Activity history */}
+        <Text style={styles.sectionTitle}>Activity History</Text>
+
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+        ) : activities.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>No activities logged yet. Hit Log to get started!</Text>
           </View>
         ) : (
-          <View style={styles.momentsGrid}>
-            {data.moments.map((m) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={styles.momentTile} resizeMode="cover" />
-            ))}
-          </View>
+          activities.map(item => (
+            <ActivityRow key={item.id} item={item} />
+          ))
         )}
-
-        <View style={{ height: 90 }} />
       </ScrollView>
-
-      {/* Floating action button — log a match */}
-      <TouchableOpacity
-        style={styles.fab}
-        activeOpacity={0.85}
-        onPress={() => navigation.navigate('LogMatch')}
-      >
-        <Ionicons name="add" size={24} color="#431407" />
-      </TouchableOpacity>
-
-      {/* Bottom nav */}
-      <View style={styles.bottomNav}>
-        {NAV_ITEMS.map((item) => (
-          <View key={item.key} style={styles.navItem}>
-            <Ionicons
-              name={item.icon}
-              size={19}
-              color={item.key === 'profile' ? '#fb923c' : colors.textFaint}
-            />
-            <Text
-              style={[
-                styles.navLabel,
-                item.key === 'profile' && { color: '#fb923c' },
-              ]}
-            >
-              {item.label}
-            </Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Bio edit modal */}
-      <Modal visible={bioModalOpen} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <TouchableWithoutFeedback onPress={() => setBioModalOpen(false)}>
-            <View style={styles.modalBackdrop} />
-          </TouchableWithoutFeedback>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit bio</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={bioDraft}
-              onChangeText={setBioDraft}
-              multiline
-              maxLength={120}
-              placeholder="Tell other players a bit about yourself..."
-              placeholderTextColor={colors.textFaint}
-              autoFocus
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={() => Keyboard.dismiss()}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setBioModalOpen(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={saveBio}>
-                <Text style={styles.modalSaveText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal visible={nameModalOpen} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <TouchableWithoutFeedback onPress={() => setNameModalOpen(false)}>
-            <View style={styles.modalBackdrop} />
-          </TouchableWithoutFeedback>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit name</Text>
-            <TextInput
-              style={styles.modalInputSingle}
-              value={nameDraft}
-              onChangeText={setNameDraft}
-              placeholder="Your full name"
-              placeholderTextColor={colors.textFaint}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={saveName}
-              autoCapitalize="words"
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setNameModalOpen(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={saveName}>
-                <Text style={styles.modalSaveText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bgPrimary },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: spacing.lg },
-  topbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: 6,
-  },
-  topbarTitle: { color: colors.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.6 },
-  topbarIcons: { flexDirection: 'row', gap: spacing.lg },
-  hero: {
-    height: 78,
-    backgroundColor: '#7c2d12',
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderTopLeftRadius: radius.xxl,
-    borderTopRightRadius: radius.xxl,
-    justifyContent: 'flex-start',
-    paddingHorizontal: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    position: 'relative',
-    overflow: 'visible',
-  },
-  coverImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopLeftRadius: radius.xxl,
-    borderTopRightRadius: radius.xxl,
-  },
-  coverEdit: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 26,
-    height: 26,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarWrap: { marginBottom: -22, zIndex: 10, elevation: 10 },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.bgPrimary,
-    borderWidth: 3,
-    borderColor: '#fb923c',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatarText: { color: '#fb923c', fontSize: 20, fontWeight: '700' },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 32,
-  },
-  avatarEdit: {
-    position: 'absolute',
-    bottom: 0,
-    right: -4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#fb923c',
-    borderWidth: 2,
-    borderColor: colors.bgPrimary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-    elevation: 20,
-  },
-  sportBadge: {
-    backgroundColor: '#9a3412',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    marginLeft: spacing.sm,
-    marginBottom: 6,
-  },
-  sportBadgeText: { color: '#fed7aa', fontSize: 10, fontWeight: '600' },
-  profileCard: {
-    backgroundColor: colors.bgCard,
-    marginHorizontal: spacing.lg,
-    borderBottomLeftRadius: radius.xxl,
-    borderBottomRightRadius: radius.xxl,
-    paddingTop: 30,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
-  },
-  pnameRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  pname: { color: colors.textPrimary, fontSize: 18, fontWeight: '700', letterSpacing: -0.3, marginBottom: 2 },
-  pmeta: { color: colors.textSecondary, fontSize: 12 },
-  bioRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  bioText: { flex: 1, color: '#cbd5e1', fontSize: 12, lineHeight: 18 },
-  statsRow: { flexDirection: 'row', gap: spacing.sm },
-  statBox: { flex: 1, backgroundColor: '#7c2d12', borderRadius: radius.lg, paddingVertical: 10, alignItems: 'center' },
-  statNum: { color: '#fed7aa', fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
-  statLabel: { color: '#fb923c', fontSize: 9, fontWeight: '600', textTransform: 'uppercase', marginTop: 2 },
-  sectionTitle: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.7,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-  },
-  momentsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: spacing.lg,
-  },
-  momentsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginHorizontal: spacing.lg,
-  },
-  momentTile: {
-    width: MOMENT_TILE_SIZE,
-    height: MOMENT_TILE_SIZE,
-    borderRadius: radius.lg,
-    backgroundColor: colors.bgCard,
-  },
-  favRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginHorizontal: spacing.lg },
-  favChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#7c2d12',
-    borderRadius: radius.md,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-  },
-  favChipText: { color: '#fed7aa', fontSize: 12, fontWeight: '600' },
-  emptyInlineText: { color: colors.textFaint, fontSize: 12 },
-  activityList: { marginHorizontal: spacing.lg, gap: spacing.sm },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  activityIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.sm,
-    backgroundColor: colors.bgTertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activityTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  activityText: { color: colors.textPrimary, fontSize: 12, fontWeight: '600', flex: 1 },
-  activityPartner: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
-  activityNotes: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
-  activityFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
-  activityTime: { color: colors.textFaint, fontSize: 10 },
-  activityReactions: { flexDirection: 'row', gap: 8 },
-  reactionText: { fontSize: 11, color: colors.textMuted },
-  formatBadge: { backgroundColor: colors.bgTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  formatBadgeText: { color: colors.textFaint, fontSize: 9, fontWeight: '700' },
-  emptyFeed: { marginHorizontal: spacing.lg, paddingVertical: spacing.lg },
-  emptyFeedText: { color: colors.textFaint, fontSize: 11, lineHeight: 16, textAlign: 'center' },
-  emptyMoments: {
-    marginHorizontal: spacing.lg,
-    backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    borderRadius: radius.lg,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    alignItems: 'center',
-  },
-  emptyTitle: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: spacing.sm, marginBottom: 3 },
-  emptySub: { color: colors.textMuted, fontSize: 11, marginBottom: spacing.md, textAlign: 'center' },
-  emptyBtn: { backgroundColor: '#fb923c', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.sm },
-  emptyBtnText: { color: '#431407', fontSize: 11, fontWeight: '700' },
-  fab: {
-    position: 'absolute',
-    bottom: 86,
-    right: 18,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#fb923c',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#fb923c',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-    borderTopWidth: 0.5,
-    borderTopColor: colors.bgTertiary,
-    backgroundColor: colors.bgPrimary,
-  },
-  navItem: { alignItems: 'center', gap: 3 },
-  navLabel: { fontSize: 9, color: colors.textFaint },
+function StatBox({ label, value }) {
+  return (
+    <View style={styles.statBox}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
+function ActivityRow({ item }) {
+  const sport = item.sport ?? 'badminton';
+  const color = SPORT_COLOR[sport] ?? colors.primary;
+  return (
+    <View style={styles.activityRow}>
+      <View style={[styles.activityIcon, { backgroundColor: color + '22' }]}>
+        <Text style={{ fontSize: 18 }}>{SPORT_ICON[sport] ?? '🏅'}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.activitySummary} numberOfLines={2}>{item.summary}</Text>
+        <Text style={styles.activityDate}>{formatDate(item.created_at)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { padding: spacing.lg, gap: spacing.lg },
+
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { fontFamily: fonts.bold, fontSize: 24, color: colors.text },
+  signOutBtn: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border,
   },
-  modalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  signOutText: { fontFamily: fonts.medium, fontSize: 13, color: colors.textSecondary },
+
+  profileCard: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
+  avatar: { width: 80, height: 80, borderRadius: 40 },
+  avatarPlaceholder: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: colors.primary + '33', alignItems: 'center', justifyContent: 'center',
   },
-  modalCard: {
-    backgroundColor: colors.bgSecondary,
-    borderTopLeftRadius: radius.xxl,
-    borderTopRightRadius: radius.xxl,
-    padding: spacing.xl,
+  avatarInitial: { fontFamily: fonts.bold, fontSize: 32, color: colors.primary },
+  name: { fontFamily: fonts.bold, fontSize: 22, color: colors.text },
+  email: { fontFamily: fonts.regular, fontSize: 13, color: colors.textMuted },
+  sportBadges: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', justifyContent: 'center' },
+  sportBadge: {
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: radius.full, borderWidth: 1, backgroundColor: colors.bgCard,
   },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+  sportBadgeText: { fontFamily: fonts.medium, fontSize: 13, color: colors.textSecondary },
+  bio: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+
+  statsRow: { flexDirection: 'row', gap: spacing.md },
+  statBox: {
+    flex: 1, alignItems: 'center', paddingVertical: spacing.md,
+    backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.border,
   },
-  doneLink: {
-    color: '#fb923c',
-    fontSize: 12,
-    fontWeight: '700',
+  statValue: { fontFamily: fonts.bold, fontSize: 28, color: colors.primary },
+  statLabel: { fontFamily: fonts.medium, fontSize: 13, color: colors.textMuted },
+
+  sectionTitle: { fontFamily: fonts.semiBold, fontSize: 16, color: colors.text },
+
+  activityRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    padding: spacing.md, borderWidth: 1, borderColor: colors.border,
   },
-  modalTitle: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: spacing.md,
-  },
-  modalInput: {
-    backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    fontSize: 13,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  modalInputSingle: {
-    backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 13,
-    color: colors.textPrimary,
-    fontSize: 14,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.lg,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  modalCancelText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
-  modalSaveBtn: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: radius.lg,
-    backgroundColor: '#fb923c',
-    alignItems: 'center',
-  },
-  modalSaveText: { color: '#431407', fontSize: 13, fontWeight: '700' },
+  activityIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  activitySummary: { fontFamily: fonts.medium, fontSize: 13, color: colors.text, lineHeight: 18 },
+  activityDate: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
+
+  empty: { padding: spacing.lg, alignItems: 'center' },
+  emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });

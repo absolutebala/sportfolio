@@ -1,346 +1,156 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  View, Text, StyleSheet, SafeAreaView, FlatList,
+  TouchableOpacity, ActivityIndicator, Image, RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, getSportColors } from '../theme';
-import { useOnboarding } from '../context/OnboardingContext';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
+import { colors, fonts, spacing, radius } from '../theme';
 
-const MY_CLUBS = [
-  {
-    id: '1',
-    name: 'Chennai Smash Club',
-    sport: 'badminton',
-    role: 'Member',
-    members: 148,
-    nextEvent: 'Open Singles — Jul 12',
-    unread: 3,
-  },
-];
+const SPORT_ICON = { badminton: '🏸', cricket: '🏏' };
 
-const UPCOMING_EVENTS = [
-  {
-    id: 'e1',
-    title: 'Open Singles Tournament',
-    club: 'Chennai Smash Club',
-    sport: 'badminton',
-    date: 'Jul 12',
-    slots: '8 left',
-  },
-  {
-    id: 'e2',
-    title: 'Friendly 5-a-side',
-    club: 'FC Chennai United',
-    sport: 'football',
-    date: 'Jul 15',
-    slots: '4 left',
-  },
-  {
-    id: 'e3',
-    title: 'Summer Swim Meet',
-    club: 'Aqua Masters',
-    sport: 'swimming',
-    date: 'Jul 20',
-    slots: 'Open',
-  },
-];
+function ClubCard({ club }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardLeft}>
+        {club.logo_url
+          ? <Image source={{ uri: club.logo_url }} style={styles.clubLogo} />
+          : <View style={styles.clubLogoPlaceholder}>
+              <Text style={styles.clubLogoInitial}>{(club.name ?? 'C')[0].toUpperCase()}</Text>
+            </View>
+        }
+      </View>
+      <View style={styles.cardBody}>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.clubName}>{club.name}</Text>
+          {club.verified && <Text style={styles.verifiedBadge}>✓ Verified</Text>}
+        </View>
+        {club.description ? (
+          <Text style={styles.clubDesc} numberOfLines={2}>{club.description}</Text>
+        ) : null}
+        <View style={styles.sportTags}>
+          {(club.sports ?? []).map(s => (
+            <Text key={s} style={styles.sportTag}>{SPORT_ICON[s] ?? '🏅'} {s}</Text>
+          ))}
+        </View>
+        <Text style={styles.memberCount}>{club.member_count ?? 0} members</Text>
+      </View>
+    </View>
+  );
+}
 
-export default function ClubsScreen({ navigation }) {
-  const { data } = useOnboarding();
-  const [activeTab, setActiveTab] = useState('my');
-  const primarySport = data.sports?.[0] || 'badminton';
-  const sc = getSportColors(primarySport);
+export default function ClubsScreen() {
+  const navigation = useNavigation();
+  const [clubs, setClubs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchClubs = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('clubs')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) console.warn('[Clubs] fetch error:', error.message);
+    setClubs(data ?? []);
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchClubs().finally(() => setLoading(false));
+  }, [fetchClubs]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchClubs();
+    setRefreshing(false);
+  }, [fetchClubs]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.title}>Clubs</Text>
-        <TouchableOpacity style={[styles.createBtn, { backgroundColor: sc.dark }]}>
-          <Ionicons name="add" size={18} color={sc.accent} />
-          <Text style={[styles.createBtnText, { color: sc.accent }]}>Create</Text>
+        <Text style={styles.headerTitle}>Clubs</Text>
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => navigation.navigate('CreateClub')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.createBtnText}>+ Create</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        {[{ key: 'my', label: 'My Clubs' }, { key: 'events', label: 'Events' }, { key: 'explore', label: 'Explore' }].map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tab, activeTab === t.key && styles.tabActive]}
-            onPress={() => setActiveTab(t.key)}
-          >
-            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {activeTab === 'my' && (
-          <>
-            {MY_CLUBS.map((club) => {
-              const csc = getSportColors(club.sport);
-              return (
-                <TouchableOpacity key={club.id} style={styles.myClubCard}>
-                  <View style={styles.myClubTop}>
-                    <View style={[styles.clubIcon, { backgroundColor: csc.dark }]}>
-                      <Ionicons name="shield" size={22} color={csc.accent} />
-                    </View>
-                    <View style={styles.myClubInfo}>
-                      <View style={styles.myClubNameRow}>
-                        <Text style={styles.clubName}>{club.name}</Text>
-                        {club.unread > 0 && (
-                          <View style={styles.unreadBadge}>
-                            <Text style={styles.unreadText}>{club.unread}</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.clubMeta}>{club.members} members · {club.role}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-                  </View>
-                  {club.nextEvent && (
-                    <View style={[styles.eventStrip, { backgroundColor: csc.dark }]}>
-                      <Ionicons name="calendar-outline" size={13} color={csc.accent} />
-                      <Text style={[styles.eventStripText, { color: csc.light }]}>
-                        Next: {club.nextEvent}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-
-            <TouchableOpacity style={styles.joinMore}>
-              <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.joinMoreText}>Find more clubs to join</Text>
-              <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
-            </TouchableOpacity>
-          </>
-        )}
-
-        {activeTab === 'events' && (
-          <>
-            <Text style={styles.sectionLabel}>Upcoming Events</Text>
-            {UPCOMING_EVENTS.map((evt) => {
-              const esc = getSportColors(evt.sport);
-              return (
-                <View key={evt.id} style={styles.eventCard}>
-                  <View style={[styles.eventDateBox, { backgroundColor: esc.dark }]}>
-                    <Text style={[styles.eventDateText, { color: esc.accent }]}>{evt.date}</Text>
-                  </View>
-                  <View style={styles.eventInfo}>
-                    <Text style={styles.eventTitle}>{evt.title}</Text>
-                    <Text style={styles.eventClub}>{evt.club}</Text>
-                    <View style={[styles.slotBadge, { backgroundColor: esc.dark }]}>
-                      <Text style={[styles.slotText, { color: esc.accent }]}>{evt.slots} slots</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity style={[styles.registerBtn, { backgroundColor: esc.accent }]}>
-                    <Text style={styles.registerBtnText}>Join</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        {activeTab === 'explore' && (
-          <>
-            <Text style={styles.sectionLabel}>Popular Clubs in Chennai</Text>
-            {[
-              { name: 'Chennai Smash Club', sport: 'badminton', members: 148 },
-              { name: 'FC Chennai United', sport: 'football', members: 213 },
-              { name: 'Aqua Masters', sport: 'swimming', members: 87 },
-              { name: 'RKN Cricket Academy', sport: 'cricket', members: 174 },
-              { name: 'Baseline Tennis Club', sport: 'tennis', members: 62 },
-            ].map((c) => {
-              const csc = getSportColors(c.sport);
-              return (
-                <View key={c.name} style={styles.exploreCard}>
-                  <View style={[styles.clubIcon, { backgroundColor: csc.dark }]}>
-                    <Ionicons name="shield" size={20} color={csc.accent} />
-                  </View>
-                  <View style={styles.myClubInfo}>
-                    <Text style={styles.clubName}>{c.name}</Text>
-                    <Text style={styles.clubMeta}>{c.members} members</Text>
-                  </View>
-                  <TouchableOpacity style={[styles.requestBtn, { borderColor: csc.accent }]}>
-                    <Text style={[styles.requestBtnText, { color: csc.accent }]}>Request</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        <View style={{ height: 80 }} />
-      </ScrollView>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      ) : (
+        <FlatList
+          data={clubs}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => <ClubCard club={item} />}
+          contentContainerStyle={clubs.length === 0 ? styles.emptyContainer : styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>🏟️</Text>
+              <Text style={styles.emptyTitle}>No clubs yet</Text>
+              <Text style={styles.emptySub}>Be the first to create one!</Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bgPrimary },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
+  headerTitle: { fontFamily: fonts.bold, fontSize: 24, color: colors.text },
   createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
+    paddingHorizontal: 14, paddingVertical: 7,
+    backgroundColor: colors.primary, borderRadius: radius.full,
   },
-  createBtnText: { fontSize: 13, fontWeight: '700' },
+  createBtnText: { fontFamily: fonts.semiBold, fontSize: 13, color: '#fff' },
 
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  tab: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tabActive: { backgroundColor: colors.bgCard, borderColor: colors.textSecondary },
-  tabText: { fontSize: 13, fontWeight: '600', color: colors.textFaint },
-  tabTextActive: { color: colors.textPrimary },
+  list: { padding: spacing.md, gap: spacing.md },
+  emptyContainer: { flex: 1 },
 
-  content: { paddingHorizontal: spacing.lg },
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
-    marginBottom: spacing.md,
+  card: {
+    flexDirection: 'row', gap: spacing.md, padding: spacing.md,
+    backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.border,
   },
+  cardLeft: {},
+  clubLogo: { width: 52, height: 52, borderRadius: radius.md },
+  clubLogoPlaceholder: {
+    width: 52, height: 52, borderRadius: radius.md,
+    backgroundColor: colors.primary + '33', alignItems: 'center', justifyContent: 'center',
+  },
+  clubLogoInitial: { fontFamily: fonts.bold, fontSize: 22, color: colors.primary },
 
-  // My Club card
-  myClubCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
+  cardBody: { flex: 1, gap: 4 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  clubName: { fontFamily: fonts.semiBold, fontSize: 15, color: colors.text, flex: 1 },
+  verifiedBadge: {
+    fontFamily: fonts.medium, fontSize: 10, color: colors.badminton,
+    backgroundColor: colors.badminton + '22', paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: radius.full,
   },
-  myClubTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  clubIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  myClubInfo: { flex: 1 },
-  myClubNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  clubName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  clubMeta: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  unreadBadge: {
-    backgroundColor: '#ef4444',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unreadText: { fontSize: 10, color: '#fff', fontWeight: '700' },
-  eventStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  eventStripText: { fontSize: 12, fontWeight: '600' },
+  clubDesc: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  sportTags: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 4 },
+  sportTag: { fontFamily: fonts.medium, fontSize: 11, color: colors.textMuted },
+  memberCount: { fontFamily: fonts.regular, fontSize: 11, color: colors.textMuted, marginTop: 2 },
 
-  joinMore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  joinMoreText: { flex: 1, fontSize: 14, color: colors.textSecondary, fontWeight: '600' },
-
-  // Event card
-  eventCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  eventDateBox: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eventDateText: { fontSize: 12, fontWeight: '800', textAlign: 'center' },
-  eventInfo: { flex: 1 },
-  eventTitle: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  eventClub: { fontSize: 11, color: colors.textMuted, marginTop: 2, marginBottom: 4 },
-  slotBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill },
-  slotText: { fontSize: 10, fontWeight: '700' },
-  registerBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.pill,
-  },
-  registerBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
-
-  // Explore
-  exploreCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  requestBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-  },
-  requestBtnText: { fontSize: 12, fontWeight: '700' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl, gap: spacing.md },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontFamily: fonts.semiBold, fontSize: 18, color: colors.text },
+  emptySub: { fontFamily: fonts.regular, fontSize: 14, color: colors.textMuted, textAlign: 'center' },
 });
