@@ -1,28 +1,27 @@
 {
-  "name": "isportone-fresh",
+  "name": "sportfolio",
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "@expo/vector-icons": "*",
-    "@react-native-async-storage/async-storage": "*",
-    "@react-native-community/datetimepicker": "*",
+    "@expo-google-fonts/poppins": "^0.2.3",
+    "@expo/vector-icons": "^14.0.2",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native-community/datetimepicker": "8.2.0",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.11.0",
     "@supabase/supabase-js": "^2.47.10",
-    "expo-auth-session": "*",
-    "expo-web-browser": "*",
-    "expo-linking": "*",
-    "@react-navigation/bottom-tabs": "*",
-    "@react-navigation/native": "*",
-    "@react-navigation/native-stack": "*",
-    "@expo-google-fonts/poppins": "*",
-    "expo": "*",
-    "expo-linear-gradient": "*",
-    "expo-font": "*",
-    "expo-image-picker": "*",
-    "expo-status-bar": "*",
-    "react": "*",
-    "react-native": "*",
-    "react-native-safe-area-context": "*",
-    "react-native-screens": "*"
+    "expo": "~51.0.39",
+    "expo-font": "~12.0.10",
+    "expo-image-picker": "~15.0.7",
+    "expo-linear-gradient": "~13.0.2",
+    "expo-linking": "~6.3.1",
+    "expo-status-bar": "~1.12.1",
+    "expo-web-browser": "~13.0.3",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-safe-area-context": "4.10.5",
+    "react-native-screens": "3.34.0"
   },
   "scripts": {
     "start": "expo start",
@@ -32,6 +31,6 @@
   },
   "private": true,
   "devDependencies": {
-    "babel-preset-expo": "*"
+    "babel-preset-expo": "~11.0.15"
   }
 }
